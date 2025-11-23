@@ -98,10 +98,6 @@ body {
     transform: scale(0.95);
 }
 
-.scene-hidden {
-    display: none !important;
-}
-
 .plant-dropdown {
     width: 100%;
     padding: 12px;
@@ -138,30 +134,4 @@ body {
     font-size: 0.95em;
     color: #666;
     line-height: 1.4;
-}
-
-.gesture-area {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100vw;
-    height: 100vh;
-    z-index: 1;
-    touch-action: none;
-}
-
-/* Helper text for touch instructions */
-.gesture-hint {
-    position: fixed;
-    bottom: 20px;
-    left: 50%;
-    transform: translateX(-50%);
-    background: rgba(0, 0, 0, 0.7);
-    color: white;
-    padding: 8px 16px;
-    border-radius: 20px;
-    font-size: 14px;
-    pointer-events: none;
-    opacity: 0;
-    transition: opacity 0.3s;
 }
