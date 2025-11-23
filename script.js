@@ -26,11 +26,20 @@ const plantInfo = {
 };
 
 function initAR() {
+    console.log('=== initAR STARTED ===');
     const plantSelector = document.getElementById('plantSelector');
     const infoCard = document.getElementById('plantInfo');
     const debugMsg = document.getElementById('debug-message');
     const statusIcon = document.getElementById('status-icon');
     const canvas = document.getElementById('xr-canvas');
+
+    console.log('DOM elements:', {
+        plantSelector: !!plantSelector,
+        infoCard: !!infoCard,
+        debugMsg: !!debugMsg,
+        statusIcon: !!statusIcon,
+        canvas: !!canvas
+    });
 
     if (!plantSelector || !debugMsg || !statusIcon || !canvas) {
         console.error('Missing DOM elements');
@@ -83,22 +92,35 @@ function initAR() {
     });
 
     function initThree() {
-        renderer = new THREE.WebGLRenderer({ canvas: canvas, alpha: true, antialias: true });
-        renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.setPixelRatio(window.devicePixelRatio);
-        renderer.xr.enabled = true;
+        console.log('Starting Three.js initialization...');
+        console.log('Canvas:', canvas);
+        console.log('Window.THREE:', window.THREE);
+        
+        try {
+            renderer = new THREE.WebGLRenderer({ canvas: canvas, alpha: true, antialias: true });
+            console.log('WebGLRenderer created');
+            
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.xr.enabled = true;
 
-        scene = new THREE.Scene();
-        camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.01, 20);
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.01, 20);
 
-        const ambientLight = new THREE.AmbientLight(0xffffff, 1.2);
-        scene.add(ambientLight);
+            const ambientLight = new THREE.AmbientLight(0xffffff, 1.2);
+            scene.add(ambientLight);
 
-        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
-        directionalLight.position.set(1, 2, 3);
-        scene.add(directionalLight);
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            directionalLight.position.set(1, 2, 3);
+            scene.add(directionalLight);
 
-        showDebug('Tap screen to start AR');
+            console.log('Three.js fully initialized');
+            showDebug('Tap screen to start AR');
+        } catch (err) {
+            console.error('Three.js init error:', err);
+            showDebug(`Three.js Error: ${err.message}`);
+            throw err;
+        }
     }
 
     function loadPlantModel(plantKey, callback) {
@@ -228,14 +250,37 @@ function initAR() {
     try {
         initThree();
         setStatusIcon('unknown');
+        console.log('=== initAR COMPLETED SUCCESSFULLY ===');
     } catch (err) {
         console.error('Init error:', err);
+        console.error('Stack:', err.stack);
         showDebug(`Error: ${err.message}`);
+        setStatusIcon('no');
+    }
+}
+
+console.log('Script loaded. Document ready state:', document.readyState);
+
+function startInit() {
+    console.log('Attempting to initialize AR...');
+    console.log('THREE available:', !!window.THREE);
+    console.log('THREE.GLTFLoader available:', !!(window.THREE && window.THREE.GLTFLoader));
+    
+    try {
+        initAR();
+        console.log('initAR() called successfully');
+    } catch (err) {
+        console.error('Failed to call initAR():', err);
     }
 }
 
 if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', () => setTimeout(initAR, 100));
+    console.log('DOM still loading, waiting for DOMContentLoaded');
+    document.addEventListener('DOMContentLoaded', () => {
+        console.log('DOMContentLoaded fired');
+        setTimeout(startInit, 50);
+    });
 } else {
-    setTimeout(initAR, 100);
+    console.log('DOM already loaded, starting init immediately');
+    setTimeout(startInit, 50);
 }
