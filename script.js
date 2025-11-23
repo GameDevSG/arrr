@@ -159,6 +159,7 @@ function initAR() {
             });
 
             xrSession = session;
+            renderer.xr.enabled = true;
             renderer.xr.setSession(session);
 
             xrRefSpace = await session.requestReferenceSpace('viewer');
@@ -170,6 +171,7 @@ function initAR() {
             session.addEventListener('select', onXRSelect);
             session.addEventListener('end', () => {
                 xrSession = null;
+                renderer.xr.enabled = false;
                 showDebug('AR ended');
                 setStatusIcon('unknown');
             });
@@ -204,12 +206,11 @@ function initAR() {
     }
 
     function renderARFrame(time, frame) {
-        if (!frame) {
-            renderer.render(scene, camera);
-            return;
-        }
+        if (!frame) return;
 
+        const session = frame.session;
         const hitTestResults = frame.getHitTestResults(xrHitTestSource);
+        
         if (hitTestResults.length > 0) {
             const hit = hitTestResults[0];
             const pose = hit.getPose(xrRefSpace);
@@ -230,7 +231,12 @@ function initAR() {
             }
         }
 
-        renderer.render(scene, camera);
+        // Use XR camera from frame
+        const pose = frame.getViewerPose(xrRefSpace);
+        if (pose) {
+            const glLayer = session.renderState.baseLayer;
+            renderer.render(scene, camera);
+        }
     }
 
     canvas.addEventListener('click', () => {
