@@ -97,21 +97,36 @@ function initAR() {
         console.log('Window.THREE:', window.THREE);
         
         try {
-            renderer = new THREE.WebGLRenderer({ canvas: canvas, alpha: true, antialias: true });
+            renderer = new THREE.WebGLRenderer({ 
+                canvas: canvas, 
+                alpha: true, 
+                antialias: true,
+                preserveDrawingBuffer: false
+            });
             console.log('WebGLRenderer created');
             
             renderer.setSize(window.innerWidth, window.innerHeight);
             renderer.setPixelRatio(window.devicePixelRatio);
             renderer.xr.enabled = true;
+            renderer.xr.cameraAutoUpdate = true;
 
             scene = new THREE.Scene();
-            camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.01, 20);
+            scene.background = null;
+            
+            camera = new THREE.PerspectiveCamera(
+                70, 
+                window.innerWidth / window.innerHeight, 
+                0.01, 
+                20
+            );
+            camera.position.set(0, 0, 0);
 
-            const ambientLight = new THREE.AmbientLight(0xffffff, 1.2);
+            // Lighting
+            const ambientLight = new THREE.AmbientLight(0xffffff, 1.5);
             scene.add(ambientLight);
 
-            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
-            directionalLight.position.set(1, 2, 3);
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 1.0);
+            directionalLight.position.set(5, 10, 7);
             scene.add(directionalLight);
 
             console.log('Three.js fully initialized');
@@ -155,31 +170,55 @@ function initAR() {
         try {
             const session = await navigator.xr.requestSession('immersive-ar', {
                 requiredFeatures: ['hit-test', 'dom-overlay'],
+                optionalFeatures: ['dom-overlay-for-handheld-ar'],
                 domOverlay: { root: document.body }
             });
 
+            console.log('XR Session created:', session);
             xrSession = session;
-            renderer.xr.enabled = true;
+
+            // Create XR rendering layer
+            const canvas = renderer.domElement;
+            const glContext = canvas.getContext('webgl2', { 
+                xrCompatible: true,
+                antialias: true,
+                alpha: true
+            }) || canvas.getContext('webgl', { 
+                xrCompatible: true,
+                antialias: true,
+                alpha: true 
+            });
+
+            if (!glContext) {
+                throw new Error('Failed to get WebGL context');
+            }
+
+            const layer = await XRWebGLLayer.create(session, glContext);
+            session.updateRenderState({ baseLayer: layer });
+
             renderer.xr.setSession(session);
 
             xrRefSpace = await session.requestReferenceSpace('viewer');
             xrHitTestSource = await session.requestHitTestSource({ space: xrRefSpace });
 
+            console.log('XR setup complete');
             showDebug('AR active. Point at flat surface.');
             setStatusIcon('unknown');
 
             session.addEventListener('select', onXRSelect);
             session.addEventListener('end', () => {
+                console.log('XR Session ended');
                 xrSession = null;
-                renderer.xr.enabled = false;
                 showDebug('AR ended');
                 setStatusIcon('unknown');
             });
 
+            // Start animation loop
             renderer.setAnimationLoop((time, frame) => renderARFrame(time, frame));
+            
         } catch (err) {
+            console.error('AR Session error:', err);
             showDebug(`AR failed: ${err.message}`);
-            console.error(err);
             setStatusIcon('no');
         }
     }
@@ -206,35 +245,38 @@ function initAR() {
     }
 
     function renderARFrame(time, frame) {
-        if (!frame) return;
-
         const session = frame.session;
-        const hitTestResults = frame.getHitTestResults(xrHitTestSource);
         
-        if (hitTestResults.length > 0) {
-            const hit = hitTestResults[0];
-            const pose = hit.getPose(xrRefSpace);
-            if (pose) {
-                lastHitMatrix = pose.transform.matrix;
-                if (!surfaceDetected) {
-                    showDebug('✓ Surface detected. Tap to place.');
-                    setStatusIcon('yes');
-                    surfaceDetected = true;
+        // Get hit test results for surface detection
+        if (xrHitTestSource) {
+            const hitTestResults = frame.getHitTestResults(xrHitTestSource);
+            
+            if (hitTestResults.length > 0) {
+                const hit = hitTestResults[0];
+                const pose = hit.getPose(xrRefSpace);
+                if (pose) {
+                    lastHitMatrix = pose.transform.matrix;
+                    if (!surfaceDetected) {
+                        console.log('Surface detected');
+                        showDebug('✓ Surface detected. Tap to place.');
+                        setStatusIcon('yes');
+                        surfaceDetected = true;
+                    }
                 }
-            }
-        } else {
-            lastHitMatrix = null;
-            if (surfaceDetected) {
-                showDebug('✗ No surface. Scan area.');
-                setStatusIcon('no');
-                surfaceDetected = false;
+            } else {
+                if (surfaceDetected) {
+                    console.log('Surface lost');
+                    lastHitMatrix = null;
+                    showDebug('✗ No surface. Scan area.');
+                    setStatusIcon('no');
+                    surfaceDetected = false;
+                }
             }
         }
 
-        // Use XR camera from frame
+        // Render using XR camera
         const pose = frame.getViewerPose(xrRefSpace);
         if (pose) {
-            const glLayer = session.renderState.baseLayer;
             renderer.render(scene, camera);
         }
     }
