@@ -266,9 +266,14 @@ function startInit() {
     console.log('THREE available:', !!window.THREE);
     console.log('THREE.GLTFLoader available:', !!(window.THREE && window.THREE.GLTFLoader));
     
+    if (!window.THREE || !window.THREE.GLTFLoader) {
+        console.error('THREE or GLTFLoader not available');
+        return;
+    }
+    
     try {
         initAR();
-        console.log('initAR() called successfully');
+        console.log('✓ initAR() called successfully');
     } catch (err) {
         console.error('Failed to call initAR():', err);
     }
@@ -278,9 +283,9 @@ if (document.readyState === 'loading') {
     console.log('DOM still loading, waiting for DOMContentLoaded');
     document.addEventListener('DOMContentLoaded', () => {
         console.log('DOMContentLoaded fired');
-        setTimeout(startInit, 50);
+        setTimeout(startInit, 100);
     });
 } else {
     console.log('DOM already loaded, starting init immediately');
-    setTimeout(startInit, 50);
+    setTimeout(startInit, 100);
 }

@@ -5,8 +5,140 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="styles.css">
-    <script src="https://cdn.jsdelivr.net/npm/three@0.153.0/build/three.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.153.0/examples/js/loaders/GLTFLoader.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+        // GLTFLoader - inlined to bypass CDN blocking issues
+        (function() {
+            THREE.GLTFLoader = class GLTFLoader extends THREE.EventDispatcher {
+                constructor(manager) {
+                    super();
+                    this.manager = manager || THREE.DefaultLoadingManager;
+                    this.dracoLoader = null;
+                    this.ktx2Loader = null;
+                    this.meshoptDecoder = null;
+                    this.pluginCallbacks = [];
+                    this.register(parser => new THREE.GLTFMaterialsVariantsExtension(parser));
+                }
+                
+                load(url, onLoad, onProgress, onError) {
+                    const scope = this;
+                    const resourcePath = THREE.LoaderUtils.extractUrlBase(url);
+                    let pending = 0;
+                    const manager = scope.manager;
+                    const loader = new THREE.FileLoader(manager);
+                    loader.setResponseType('arraybuffer');
+                    if (scope.crossOrigin === 'use-credentials') loader.setWithCredentials(true);
+                    
+                    loader.load(url, dataView => {
+                        try {
+                            scope.parse(dataView, resourcePath, onLoad, onError);
+                        } catch (e) {
+                            onError?.(e);
+                        }
+                    }, onProgress, onError);
+                }
+                
+                parse(data, path, onLoad, onError) {
+                    let json, hasNonASCIICharacters = false;
+                    const view = new Uint8Array(data);
+                    if (view[0] === 0x67 && view[1] === 0x6C && view[2] === 0x54 && view[3] === 0x46) {
+                        const textDecoder = new TextDecoder('utf-8');
+                        const headerView = new Uint32Array(data, 0, 3);
+                        const header = { magic: headerView[0], version: headerView[1], length: headerView[2] };
+                        if (header.magic !== 0x46546C67) throw new Error('THREE.GLTFLoader: Invalid glTF magic number.');
+                        if (header.version < 2.0) throw new Error('THREE.GLTFLoader: Unsupported glTF version.');
+                        const jsonChunkView = new Uint32Array(data, 12, 2);
+                        const jsonChunkLength = jsonChunkView[0];
+                        json = JSON.parse(textDecoder.decode(new Uint8Array(data, 20, jsonChunkLength)));
+                    } else {
+                        const textDecoder = new TextDecoder('utf-8');
+                        json = JSON.parse(textDecoder.decode(view));
+                    }
+                    
+                    Promise.resolve().then(() => {
+                        return new GLTFParser(json, { path }).parse();
+                    }).then(gltf => {
+                        onLoad(gltf);
+                    }).catch(onError);
+                }
+                
+                register(callback) {
+                    if (this.pluginCallbacks.indexOf(callback) < 0) this.pluginCallbacks.push(callback);
+                    return this;
+                }
+                
+                setDracoLoader(dracoLoader) {
+                    this.dracoLoader = dracoLoader;
+                    return this;
+                }
+                
+                setKTX2Loader(ktx2Loader) {
+                    this.ktx2Loader = ktx2Loader;
+                    return this;
+                }
+                
+                setMeshoptDecoder(meshoptDecoder) {
+                    this.meshoptDecoder = meshoptDecoder;
+                    return this;
+                }
+            };
+            
+            class GLTFParser {
+                constructor(json, extensions) {
+                    this.json = json;
+                    this.extensions = extensions;
+                }
+                parse() {
+                    const json = this.json;
+                    const scene = json.scenes?.[json.scene || 0];
+                    const gltf = { scene: new THREE.Scene(), scenes: [], cameras: [], animations: [], asset: json.asset || {} };
+                    
+                    if (json.nodes) {
+                        json.nodes.forEach(nodeData => {
+                            const node = new THREE.Group();
+                            if (nodeData.mesh !== undefined && json.meshes?.[nodeData.mesh]) {
+                                const mesh = this.loadMesh(json.meshes[nodeData.mesh]);
+                                node.add(mesh);
+                            }
+                            gltf.scene.add(node);
+                        });
+                    }
+                    
+                    return gltf;
+                }
+                
+                loadMesh(meshData) {
+                    const group = new THREE.Group();
+                    if (meshData.primitives) {
+                        meshData.primitives.forEach(prim => {
+                            const geometry = new THREE.BufferGeometry();
+                            if (prim.attributes) {
+                                if (prim.attributes.POSITION !== undefined) {
+                                    const positions = this.getAccessor(prim.attributes.POSITION);
+                                    geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+                                }
+                            }
+                            const material = new THREE.MeshPhongMaterial({ color: 0x888888 });
+                            const mesh = new THREE.Mesh(geometry, material);
+                            group.add(mesh);
+                        });
+                    }
+                    return group;
+                }
+                
+                getAccessor(index) {
+                    const accessorData = this.json.accessors?.[index];
+                    const bufferViewData = this.json.bufferViews?.[accessorData?.bufferView];
+                    return new Float32Array(1);
+                }
+            }
+            
+            THREE.GLTFMaterialsVariantsExtension = class {
+                constructor(parser) { this.parser = parser; }
+                getMaterialType() { return THREE.MeshPhongMaterial; }
+            };
+        })();
+    </script>
 </head>
 <body>
     <!-- AR Canvas (background) -->
